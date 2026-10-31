@@ -64,20 +64,46 @@ fi
 
 # ---------------------------------------------------------------- Ollama models
 bold "4/4  Ollama models"
-env_value() { { grep -E "^$1=" backend/.env || true; } | tail -n1 | cut -d= -f2- | tr -d '"' ; }
-LLM_MODEL="$(env_value LLM_MODEL)"; LLM_MODEL="${LLM_MODEL:-gemma4:12b}"
-EMBEDDING_MODEL="$(env_value EMBEDDING_MODEL)"; EMBEDDING_MODEL="${EMBEDDING_MODEL:-embeddinggemma}"
-OLLAMA_HOST_URL="$(env_value OLLAMA_HOST)"; OLLAMA_HOST_URL="${OLLAMA_HOST_URL:-http://localhost:11434}"
+# Read settings exactly as the backend does (pydantic-settings over backend/.env), so quotes,
+# inline comments, spaces and Windows line endings are handled identically.
+setting() {
+  (cd backend && ../.venv/bin/python -c \
+    'import sys; from app.config import get_settings; print(getattr(get_settings(), sys.argv[1]))' "$1")
+}
+LLM_MODEL="$(setting llm_model)" || die "Could not read backend/.env (see the error above)."
+EMBEDDING_MODEL="$(setting embedding_model)" || die "Could not read backend/.env (see the error above)."
+OLLAMA_HOST_URL="$(setting ollama_host)" || die "Could not read backend/.env (see the error above)."
+
+# Ollama rejects names containing spaces, quotes or control characters with "invalid model name".
+clean_name() {
+  case "$1" in "" | *[[:space:]]* | *[[:cntrl:]]* | *\"* | *\'* | *\#*) return 1 ;; esac
+}
+
 if ! command -v ollama >/dev/null 2>&1; then
   warn "Ollama not installed. Install it from https://ollama.com/download, then run:"
   warn "  ollama pull ${LLM_MODEL} && ollama pull ${EMBEDDING_MODEL}"
 elif ! curl -fsS "${OLLAMA_HOST_URL}/api/version" >/dev/null 2>&1; then
-  warn "Ollama is installed but not running. Open the Ollama app (or run 'ollama serve'), then run:"
+  warn "Ollama is not reachable at ${OLLAMA_HOST_URL}. Open the Ollama app (or run 'ollama serve'), then run:"
   warn "  ollama pull ${LLM_MODEL} && ollama pull ${EMBEDDING_MODEL}"
 else
-  OLLAMA_HOST="$OLLAMA_HOST_URL" ollama pull "$LLM_MODEL"
-  OLLAMA_HOST="$OLLAMA_HOST_URL" ollama pull "$EMBEDDING_MODEL"
-  ok "Models ready: ${LLM_MODEL}, ${EMBEDDING_MODEL}"
+  PULL_FAILED=0
+  for MODEL in "$LLM_MODEL" "$EMBEDDING_MODEL"; do
+    if ! clean_name "$MODEL"; then
+      warn "Invalid model name in backend/.env: $(printf '%q' "$MODEL")  (fix LLM_MODEL / EMBEDDING_MODEL)"
+      PULL_FAILED=1
+      continue
+    fi
+    printf '  Pulling %s\n' "$MODEL"
+    if ! OLLAMA_HOST="$OLLAMA_HOST_URL" ollama pull "$MODEL"; then
+      warn "Could not pull '${MODEL}'. Check the name at https://ollama.com/library, then run: ollama pull ${MODEL}"
+      PULL_FAILED=1
+    fi
+  done
+  if [ "$PULL_FAILED" = 0 ]; then
+    ok "Models ready: ${LLM_MODEL}, ${EMBEDDING_MODEL}"
+  else
+    warn "Some models are missing. The status bar will show which one until it is pulled."
+  fi
 fi
 
 bold "Setup complete"

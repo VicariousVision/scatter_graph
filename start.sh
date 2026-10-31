@@ -15,16 +15,19 @@ DEV=false
 [ -x .venv/bin/python ] || { echo "Run 'bash setup.sh' first (no .venv found)."; exit 1; }
 [ -f backend/.env ] || { echo "Run 'bash setup.sh' first (no backend/.env found)."; exit 1; }
 
-env_value() { { grep -E "^$1=" backend/.env || true; } | tail -n1 | cut -d= -f2- | tr -d '"' ; }
-OLLAMA_URL="$(env_value OLLAMA_HOST)"; OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
+# Read settings exactly as the backend does (pydantic-settings over backend/.env).
+setting() {
+  (cd backend && ../.venv/bin/python -c \
+    'import sys; from app.config import get_settings; print(getattr(get_settings(), sys.argv[1]))' "$1")
+}
+OLLAMA_URL="$(setting ollama_host)" || { echo "Could not read backend/.env (see the error above)."; exit 1; }
 
 # Start Ollama if it isn't running. Its parallelism matches the extraction concurrency.
 if ! curl -fsS "${OLLAMA_URL}/api/version" >/dev/null 2>&1; then
   if command -v ollama >/dev/null 2>&1; then
     echo "Starting Ollama..."
     mkdir -p backend/data
-    PARALLEL="$(env_value EXTRACTION_CONCURRENCY)"
-    OLLAMA_NUM_PARALLEL="${PARALLEL:-2}" nohup ollama serve >backend/data/ollama.log 2>&1 &
+    OLLAMA_NUM_PARALLEL="$(setting extraction_concurrency)" nohup ollama serve >backend/data/ollama.log 2>&1 &
     for _ in $(seq 1 20); do curl -fsS "${OLLAMA_URL}/api/version" >/dev/null 2>&1 && break; sleep 0.5; done
   else
     echo "Warning: Ollama is not running at ${OLLAMA_URL}. The status bar will show it as offline."

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     ollama_host: str = "http://localhost:11434"
     llm_model: str = "gemma4:12b"
-    embedding_model: str = "embeddinggemma"
+    embedding_model: str = "embeddinggemma:300m"
     embedding_dimensions: int = 768
     # embeddinggemma is trained with task prefixes; they improve retrieval quality.
     embedding_query_prefix: str = "task: search result | query: "

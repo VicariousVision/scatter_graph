@@ -7,7 +7,7 @@ with a local Gemma model that answers **only** from that graph and cites the sou
 - **Ingestion:** `SimpleKGPipeline` from [neo4j-graphrag](https://neo4j.com/docs/neo4j-graphrag-python/current/), with automatic legal-domain schema extraction and entity resolution across documents.
 - **Retrieval:** `HybridCypherRetriever` (vector + fulltext search over chunks, then expansion to the entities and relationships linked to each chunk).
 - **Answers:** `GraphRAG` with a custom `RagTemplate` that restricts the model to the retrieved context. Conversations are stored in Neo4j with `Neo4jMessageHistory`.
-- **Models (via Ollama):** `gemma4:12b` for extraction and answers, `embeddinggemma` for embeddings.
+- **Models (via Ollama):** `gemma4:12b` for extraction and answers, `embeddinggemma:300m` for embeddings.
 - **Stack:** FastAPI REST backend, React + Vite UI.
 
 ## Prerequisites
@@ -46,7 +46,7 @@ uv venv .venv --python 3.12 && uv pip install -r backend/requirements.txt
 # or: python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
 (cd frontend && npm ci && npm run build)
 cp backend/.env.example backend/.env    # then set NEO4J_PASSWORD
-ollama pull gemma4:12b && ollama pull embeddinggemma
+ollama pull gemma4:12b && ollama pull embeddinggemma:300m
 cd backend && ../.venv/bin/python -m uvicorn app.main:app --port 8000
 ```
 
@@ -103,7 +103,7 @@ All settings are in `backend/.env`. See `backend/.env.example` for the full list
 | --- | --- | --- |
 | `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD` / `NEO4J_DATABASE` | `neo4j://localhost:7687`, `neo4j`, –, `neo4j` | From Neo4j Desktop's connection details |
 | `LLM_MODEL` | `gemma4:12b` | Any Ollama chat model |
-| `EMBEDDING_MODEL` / `EMBEDDING_DIMENSIONS` | `embeddinggemma` / `768` | Changing the model after ingesting requires dropping the `chunk_embeddings` index and re-ingesting |
+| `EMBEDDING_MODEL` / `EMBEDDING_DIMENSIONS` | `embeddinggemma:300m` / `768` | Must match a pulled model name exactly (`ollama list`). Changing the model after ingesting requires dropping the `chunk_embeddings` index and re-ingesting |
 | `OLLAMA_NUM_CTX` | `16384` | Context window for both extraction and chat |
 | `OLLAMA_THINK` | `false` | Gemma 4 thinking mode (slower; not useful for JSON extraction) |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1200` / `150` | Characters |
@@ -143,7 +143,8 @@ Interactive docs are at <http://localhost:8000/docs>.
 | --- | --- |
 | Neo4j pill is red | Start the DBMS in Neo4j Desktop. Check `NEO4J_URI` and `NEO4J_PASSWORD` in `backend/.env`. |
 | APOC pill is red | Neo4j Desktop → your DBMS → Plugins → install APOC, then restart the DBMS. Ingestion needs it. |
-| LLM / Embeddings pill is red | `ollama pull gemma4:12b` and `ollama pull embeddinggemma` |
+| LLM / Embeddings pill is red | `ollama pull gemma4:12b` and `ollama pull embeddinggemma:300m`. The names in `backend/.env` must match `ollama list` exactly. |
+| `setup.sh` says "invalid model name" | `LLM_MODEL` or `EMBEDDING_MODEL` in `backend/.env` contains a space, quote or hidden character. The script prints the exact value it read. |
 | "No text found in the PDF" | The PDF is scanned images. Run OCR on it first (e.g. `ocrmypdf in.pdf out.pdf`). |
 | Few entities extracted | Some chunks may have produced invalid JSON and were skipped. See the backend log. A smaller `CHUNK_SIZE` can help. |
 | Answers are slow | Each follow-up question makes two LLM calls (history summary and answer). The first call after idle also loads the model. |
