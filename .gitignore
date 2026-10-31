@@ -1,1 +1,17 @@
-.venv
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node / frontend build
+node_modules/
+frontend/dist/
+
+# Local configuration and data
+backend/.env
+backend/data/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,12 @@
+# Backend dependencies (Python 3.11+). Installed by ./setup.sh, or manually:
+#   pip install -r backend/requirements.txt
+# Versions are pinned to the set this project was written against.
+
+neo4j-graphrag[ollama]==1.23.0   # SimpleKGPipeline, HybridCypherRetriever, GraphRAG, Neo4jMessageHistory
+neo4j==6.4.1                     # Neo4j Python driver
+ollama==0.6.3                    # Ollama client used by neo4j-graphrag's OllamaLLM / OllamaEmbeddings
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32         # multipart PDF uploads
+pydantic-settings==2.16.2        # .env configuration
+httpx==0.28.1                    # health check + smoke test script
